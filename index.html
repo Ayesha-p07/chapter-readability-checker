@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Chapter Readability Checker</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: #f7f7f7;
+      color: #222;
+    }
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 28px 18px 50px;
+    }
+    h1 { margin-bottom: 6px; }
+    .subtitle { color: #666; margin-top: 0; }
+    textarea {
+      width: 100%;
+      min-height: 260px;
+      padding: 16px;
+      border: 1px solid #ccc;
+      border-radius: 12px;
+      font-size: 16px;
+      resize: vertical;
+    }
+    button {
+      margin-top: 12px;
+      padding: 12px 20px;
+      border: 0;
+      border-radius: 10px;
+      background: #222;
+      color: white;
+      font-size: 16px;
+      cursor: pointer;
+    }
+    button:hover { opacity: .88; }
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      margin: 22px 0;
+    }
+    .card {
+      background: white;
+      padding: 18px;
+      border-radius: 12px;
+      border: 1px solid #e3e3e3;
+    }
+    .number { font-size: 28px; font-weight: bold; }
+    .label { color: #666; margin-top: 4px; }
+    .sentence {
+      background: #fff;
+      border-left: 4px solid #222;
+      padding: 14px;
+      margin: 10px 0;
+      border-radius: 6px;
+    }
+    .muted { color: #666; }
+    @media (max-width: 650px) {
+      .stats { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Chapter Readability Checker</h1>
+    <p class="subtitle">Paste a chapter to estimate readability and find the five hardest sentences.</p>
+
+    <textarea id="text" placeholder="Paste your chapter here..."></textarea>
+    <button onclick="analyze()">Analyze Chapter</button>
+
+    <div id="results" style="display:none;">
+      <div class="stats">
+        <div class="card">
+          <div class="number" id="score">-</div>
+          <div class="label">Readability score</div>
+        </div>
+        <div class="card">
+          <div class="number" id="words">0</div>
+          <div class="label">Words</div>
+        </div>
+        <div class="card">
+          <div class="number" id="sentences">0</div>
+          <div class="label">Sentences</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Five hardest sentences</h2>
+        <div id="hardest"></div>
+      </div>
+    </div>
+  </div>
+
+<script>
+function countSyllables(word) {
+  word = word.toLowerCase().replace(/[^a-z]/g, "");
+  if (!word) return 0;
+  if (word.length <= 3) return 1;
+  word = word.replace(/(?:[^laeiouy]es|ed|[^laeiouy]e)$/, "");
+  word = word.replace(/^y/, "");
+  const groups = word.match(/[aeiouy]{1,2}/g);
+  return Math.max(1, groups ? groups.length : 1);
+}
+
+function getSentences(text) {
+  return text.match(/[^.!?]+[.!?]+/g)?.map(s => s.trim()) || [];
+}
+
+function analyze() {
+  const text = document.getElementById("text").value.trim();
+  if (!text) {
+    alert("Please paste a chapter first.");
+    return;
+  }
+
+  const sentences = getSentences(text);
+  const words = text.match(/\b[\w'-]+\b/g) || [];
+
+  if (sentences.length === 0 || words.length === 0) {
+    alert("Please enter a few complete sentences.");
+    return;
+  }
+
+  const totalSyllables = words.reduce((sum, w) => sum + countSyllables(w), 0);
+  const avgWords = words.length / sentences.length;
+  const avgSyllables = totalSyllables / words.length;
+
+  // Flesch Reading Ease: higher = easier
+  let score = 206.835 - (1.015 * avgWords) - (84.6 * avgSyllables);
+  score = Math.max(0, Math.min(100, score));
+
+  document.getElementById("score").textContent = score.toFixed(1);
+  document.getElementById("words").textContent = words.length;
+  document.getElementById("sentences").textContent = sentences.length;
+
+  const scored = sentences.map(sentence => {
+    const ws = sentence.match(/\b[\w'-]+\b/g) || [];
+    const syllables = ws.reduce((sum, w) => sum + countSyllables(w), 0);
+    const avgLen = ws.length;
+    const complex = ws.filter(w => countSyllables(w) >= 3).length;
+    const difficulty = (avgLen * 1.2) + (complex * 1.8) + (syllables / Math.max(ws.length, 1));
+    return { sentence, difficulty };
+  }).sort((a,b) => b.difficulty - a.difficulty).slice(0,5);
+
+  document.getElementById("hardest").innerHTML = scored.map((item, i) =>
+    `<div class="sentence"><strong>${i+1}.</strong> ${escapeHtml(item.sentence)}</div>`
+  ).join("");
+
+  document.getElementById("results").style.display = "block";
+}
+
+function escapeHtml(str) {
+  return str.replace(/[&<>"']/g, ch => ({
+    "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#039;"
+  }[ch]));
+}
+</script>
+</body>
+</html>
